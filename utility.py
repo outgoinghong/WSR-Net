@@ -65,7 +65,7 @@ def load_HSI(path):
     except NotImplementedError:
         data = h5py.File(path, 'r')
 
-    numpy_array = np.asarray(data['Y'], dtype=np.float32)  # Y是波段*像元
+    numpy_array = np.asarray(data['Y'], dtype=np.float32)  
     numpy_array = numpy_array / np.max(numpy_array.flatten())
     n_rows = data['lines'].item()
     n_cols = data['cols'].item()
@@ -111,42 +111,30 @@ def order_abundance(abundance, abundanceGT):
 
 
 def numpy_SAD(y_true, y_pred, epsilon=1e-8, max_value=1e6):
-    """
-    计算两个向量之间的光谱角距离（SAD），加入数值稳定化措施避免除以零或inf。
 
-    参数:
-    y_true: 真实向量
-    y_pred: 预测向量
-    epsilon: 用于避免除以零的小值
-    max_value: 最大允许的数值，防止出现 inf
 
-    返回:
-    光谱角距离，以弧度表示
-    """
-    # 限制向量的最大值，防止出现溢出导致的 inf
     y_true = np.clip(y_true, -max_value, max_value)
     y_pred = np.clip(y_pred, -max_value, max_value)
 
-    # 计算两个向量的范数
+
     norm_true = np.linalg.norm(y_true)
     norm_pred = np.linalg.norm(y_pred)
 
-    # 打印范数，便于调试
     #print(f"y_true 的范数: {norm_true}")
     #print(f"y_pred 的范数: {norm_pred}")
 
-    # 检查范数是否为零或无穷大，防止除以零或 inf
+
     if norm_true < epsilon or np.isinf(norm_true) or norm_pred < epsilon or np.isinf(norm_pred):
         print("警告: 向量长度异常，无法计算光谱角距离")
         return np.nan  # 返回 NaN 表示无法计算
 
-    # 计算余弦相似度
+
     cos = y_pred.dot(y_true) / (norm_true * norm_pred)
 
-    # 确保 cos 的值在 [-1, 1] 之间，避免数值误差
+
     cos = np.clip(cos, -1.0, 1.0)
 
-    # 返回光谱角距离（以弧度表示）
+
     return np.arccos(cos)
 
 
@@ -177,25 +165,24 @@ import numpy as np
 def plotEndmembersAndGT(endmembers, endmembersGT, endmember_path, sadsave):
     num_endmembers = endmembers.shape[0]
 
-    # 设置列数为 2，动态计算行数
     cols = 2
-    rows = (num_endmembers + cols - 1) // cols  # 确保子图有足够的行数
+    rows = (num_endmembers + cols - 1) // cols  
 
     SAD_index, SAD_endmember = order_endmembers(endmembersGT, endmembers)
-    fig, axes = plt.subplots(rows, cols, figsize=(9, 9))  # 使用 subplots 动态生成子图
-    fig.subplots_adjust(hspace=0.4, wspace=0.3)  # 调整子图之间的间距
+    fig, axes = plt.subplots(rows, cols, figsize=(9, 9))  
+    fig.subplots_adjust(hspace=0.4, wspace=0.3)  
     plt.rcParams.update({'font.size': 15})
 
     title = "mSAD: " + np.array2string(SAD_endmember.mean(),
                                        formatter={'float_kind': lambda x: "%.3f" % x}) + " radians"
     st = fig.suptitle(title, y=0.95)
 
-    # 归一化处理
+
     for i in range(num_endmembers):
         endmembers[i, :] = endmembers[i, :] / endmembers[i, :].max()
         endmembersGT[i, :] = endmembersGT[i, :] / endmembersGT[i, :].max()
 
-    # 生成子图
+
     for i in range(num_endmembers):
         row, col = divmod(i, cols)
         ax = axes[row, col] if rows > 1 else axes[col]  # 根据行数来选择正确的轴
@@ -207,10 +194,10 @@ def plotEndmembersAndGT(endmembers, endmembersGT, endmember_path, sadsave):
 
     sadsave.append(SAD_endmember.mean())
 
-    # 如果子图数量不为偶数，隐藏多余的空子图
+
     if num_endmembers % cols != 0:
         for j in range(num_endmembers, rows * cols):
-            fig.delaxes(axes.flatten()[j])  # 删除多余的空子图
+            fig.delaxes(axes.flatten()[j]) 
 
     plt.savefig(endmember_path + '.png')
     """plt.draw()
@@ -236,7 +223,7 @@ def order_abundance(abundance, abundanceGT):
 
 
 def plotAbundancesSimple(abundances, abundanceGT, abundance_path, rmsesave):
-    abundances = np.transpose(abundances, axes=[1, 0, 2])  # 把行列颠倒，第三维不动，因为得到的丰度图和参考丰度图是互为转置的，即行列颠倒的
+    abundances = np.transpose(abundances, axes=[1, 0, 2])  
     num_endmembers = abundances.shape[2]
     n = num_endmembers // 2
     if num_endmembers % 2 != 0: n = n + 1
@@ -258,7 +245,7 @@ def plotAbundancesSimple(abundances, abundanceGT, abundance_path, rmsesave):
         rmsesave.append(numpy_MSE(abundances[:, :, abundance_index[i]], abundanceGT[:, :, i]))
 
     rmsesave.append(MSE_abundance.mean())
-    plt.tight_layout()  # 用于自动调整子图参数，以便使所有子图适合整个图像区域，并尽可能地减少子图之间的重叠
+    plt.tight_layout()  
     plt.rcParams.update({'font.size': 15})
     plt.suptitle(title)
     plt.subplots_adjust(top=0.91)
@@ -285,7 +272,7 @@ def plotAbundancesGT(abundanceGT, abundance_path):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-    plt.tight_layout()  # 用于自动调整子图参数，以便使所有子图适合整个图像区域，并尽可能地减少子图之间的重叠
+    plt.tight_layout()  
     plt.rcParams.update({'font.size': 19})
     plt.suptitle(title)
     plt.subplots_adjust(top=0.91)
