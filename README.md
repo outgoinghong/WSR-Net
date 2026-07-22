@@ -27,3 +27,9 @@ pip install torch==1.9.1+cu113 torchvision torchaudio -f [https://download.pytor
 
 # Install other required dependencies
 pip install numpy scipy scikit-learn matplotlib PyWavelets
+
+🚀 Demo & Usage
+Once the dataset is ready and dependencies are installed, you can run the unmixing process directly. We provide ready-to-use scripts for different test cases.
+
+To run WSR-Net on the Houston dataset:
+
