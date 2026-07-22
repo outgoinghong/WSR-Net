@@ -4,9 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# ==========================================
-# 1. 基础工具模块: 小波核构造 (用于 AWSA)
-# ==========================================
 def build_wavelet_kernels(device=None, dtype=torch.float32):
     s = 1.0 / math.sqrt(2.0)
     h0 = torch.tensor([s, s], dtype=dtype, device=device)
@@ -19,9 +16,6 @@ def build_wavelet_kernels(device=None, dtype=torch.float32):
     return filt
 
 
-# ==========================================
-# 2. 核心创新模块 A: 自适应小波收缩注意力 (AWSA)
-# ==========================================
 class AdaptiveWaveletShrinkageAttention(nn.Module):
     def __init__(self, channels, reduction=4):
         super().__init__()
@@ -86,10 +80,6 @@ class AdaptiveWaveletShrinkageAttention(nn.Module):
         out = x * attn_weight + x
         return out
 
-
-# ==========================================
-# 3. 核心创新模块 B: 级联光谱‑空间联合感知模块 (CSSP)
-# ==========================================
 class SpectralChannelAttention(nn.Module):
     def __init__(self, in_channels, reduction_ratio=16):
         super().__init__()
@@ -157,9 +147,6 @@ class CascadedSpectralSpatialJointPerception(nn.Module):
         return self.spectral_spatial_fusion(fused_feature)
 
 
-# ==========================================
-# 【新增】核心创新模块 C: PLMM 动态扰动解码器
-# ==========================================
 class PLMM_Decoder(nn.Module):
     def __init__(self, P, L):
         super().__init__()
@@ -171,34 +158,25 @@ class PLMM_Decoder(nn.Module):
         nn.init.uniform_(self.base_E, 0, 1)
 
     def forward(self, A, delta_E):
-        """
-        A: 丰度矩阵, Shape: [B, P, H, W]
-        delta_E: 逐像素端元扰动矩阵, Shape: [B, L, P, H, W]
-        """
+
         B, P, H, W = A.shape
 
-        # 将基准端元扩展至与特征图相同的空间维度: [1, L, P, 1, 1]
+
         base_E_expanded = self.base_E.view(1, self.L, self.P, 1, 1)
 
-        # 1. 动态生成逐像素端元 (基准端元 + 扰动)
+
         E_dynamic = base_E_expanded + delta_E
 
-        # 物理约束: 端元反射率必须非负
+
         E_dynamic = F.relu(E_dynamic)
 
-        # 2. 依照 LMM 模型进行混合重构 (Y = E_dynamic * A)
-        # 将 A 扩展以便于广播相乘: [B, 1, P, H, W]
         A_expanded = A.unsqueeze(1)
 
-        # 在端元维度 (dim=2) 上求和，得到最终重构的高光谱图 [B, L, H, W]
         Y_hat = torch.sum(E_dynamic * A_expanded, dim=2)
 
         return Y_hat, E_dynamic
 
 
-# ==========================================
-# 4. 总体架构: WAA-Net (融合 PLMM)
-# ==========================================
 class WAANet(nn.Module):
     def __init__(self, P, L):
         super(WAANet, self).__init__()
@@ -207,7 +185,6 @@ class WAANet(nn.Module):
 
         self.awsa = AdaptiveWaveletShrinkageAttention(channels=L)
         self.awsaA = AdaptiveWaveletShrinkageAttention(channels= P )
-        # 提取共有特征
         self.feature_extractor = nn.Sequential(
             CascadedSpectralSpatialJointPerception(in_channels=L, reduction_ratio=16),
             nn.Conv2d(L, 120, kernel_size=3, padding=1),
@@ -219,13 +196,10 @@ class WAANet(nn.Module):
             nn.BatchNorm2d(60)
         )
 
-        # 丰度预测分支
         self.abundance_branch = nn.Sequential(
             nn.Conv2d(60, self.P, kernel_size=3, padding=1),
             nn.Softmax(dim=1)  # 物理约束: ASC 和 ANC
         )
-
-        # 【新增】扰动生成分支 (Perturbation Generator)
         self.perturbation_branch = nn.Sequential(
             nn.Conv2d(60, 128, kernel_size=1),
             nn.LeakyReLU(0.2),
@@ -233,41 +207,29 @@ class WAANet(nn.Module):
             nn.Tanh()  # 将扰动限制在 [-1, 1] 范围内
         )
 
-        # PLMM 解码器
         self.decoder = PLMM_Decoder(P=P, L=L)
 
     def forward(self, x):
         x_enhanced = self.awsa(x)
 
-        # 提取深层空谱特征
         deep_features = self.feature_extractor(x_enhanced)
 
-        # 1. 预测丰度 A
         abu_est = self.abundance_branch(deep_features)
-        # 2. 预测扰动矩阵 delta_E
         B, _, H, W = deep_features.shape
         delta_E_flat = self.perturbation_branch(deep_features)
 
-        # 将扁平的通道数(L*P) Reshape 为 [B, L, P, H, W]
         delta_E = delta_E_flat.view(B, self.L, self.P, H, W)
 
-        # 为了防止扰动过大导致模型崩溃，强制缩小扰动幅度 (例如最大正负 0.1)
         delta_E = delta_E * 0.005
 
-        # 3. 动态重构
         re_result, E_dynamic = self.decoder(abu_est, delta_E)
 
-        # 返回丰度、重构结果，以及 delta_E (用于 Loss 惩罚)
         return abu_est, re_result, delta_E
 
     def extract_base_endmembers(self):
-        """返回全局基准端元矩阵"""
         return self.decoder.base_E.data.squeeze()
 
 
-# ==========================================
-# 5. 快速验证测试
-# ==========================================
 if __name__ == "__main__":
     print("Initializing WAA-Net (PLMM Edition)...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -279,7 +241,6 @@ if __name__ == "__main__":
     model = WAANet(P=P, L=L).to(device)
     dummy_input = torch.randn(batch_size, L, H, W).to(device)
 
-    # 前向传播 (此时额外返回 delta_E)
     abu_est, re_result, delta_E = model(dummy_input)
 
     print("\n[✔] Forward Pass Successful!")
