@@ -20,16 +20,11 @@ Therefore, **no large-scale pre-trained foundation model weights are required**.
 
 The code was tested in the environment of **Python 3.8**, **PyTorch 1.9.1**, and **CUDA 11.3** (Windows 10 / Linux).
 
-You can easily install the required dependencies using pip:
+You can easily install all required dependencies using the provided `requirements.txt` file:
+```bash
+pip install -r requirements.txt
+```
 
-Install PyTorch
-```bash
-pip install torch==1.9.1+cu113 torchvision torchaudio -f [https://download.pytorch.org/whl/cu113/torch_stable.html](https://download.pytorch.org/whl/cu113/torch_stable.html)
-```
-Install other required dependencies
-```bash
-pip install numpy scipy scikit-learn matplotlib PyWavelets
-```
 ## 🚀 Demo & Usage
 Once the dataset is ready and dependencies are installed, you can run the unmixing process directly. We provide ready-to-use scripts for different test cases.
 
